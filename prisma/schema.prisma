@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Team {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  password  String
+  score     Int           @default(0)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  sessions  GameSession[]
+}
+
+model GameSession {
+  id           String            @id @default(cuid())
+  currentRound Int               @default(1)
+  isComplete   Boolean           @default(false)
+  teamId       String
+  team         Team              @relation(fields: [teamId], references: [id])
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  messages     ClientMessage[]
+  documents    PlayerDocument[]
+}
+
+model ClientMessage {
+  id            String      @id @default(cuid())
+  content       String
+  round         Int
+  isVerbalTrap  Boolean     @default(false)
+  gameSessionId String
+  gameSession   GameSession @relation(fields: [gameSessionId], references: [id])
+  createdAt     DateTime    @default(now())
+}
+
+model PlayerDocument {
+  id              String                @id @default(cuid())
+  documentType    DocumentType
+  content         String                // JSON string holding form fields
+  roundSubmitted  Int
+  scoreEarned     Int                   @default(0)
+  feedback        String                @default("")
+  gameSessionId   String
+  gameSession     GameSession           @relation(fields: [gameSessionId], references: [id])
+  createdAt       DateTime              @default(now())
+}
+
+enum DocumentType {
+  CONFIRMATION
+  ADDITIONAL
+  APPROVAL
+  TRAINING
+  USER_DOC
+}
