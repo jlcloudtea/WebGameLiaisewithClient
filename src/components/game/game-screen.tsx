@@ -9,16 +9,17 @@ import FeedbackModal from './feedback-modal';
 import Leaderboard from './leaderboard';
 import { Badge } from '@/components/ui/badge';
 import { TOTAL_ROUNDS, ROUND_TIME_SECONDS, ROUND_DOCUMENT_TYPES, type DocumentType, type GameSession, type PlayerDocument } from '@/lib/game-types';
-import { FileText, Star } from 'lucide-react';
+import { FileText, Star, LogOut } from 'lucide-react';
 
 interface GameScreenProps {
   gameId: string;
   teamId: string;
   teamName: string;
   onGameOver: (score: number, documents: PlayerDocument[]) => void;
+  onReset: () => void;
 }
 
-export default function GameScreen({ gameId, teamId, teamName, onGameOver }: GameScreenProps) {
+export default function GameScreen({ gameId, teamId, teamName, onGameOver, onReset }: GameScreenProps) {
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -161,6 +162,15 @@ export default function GameScreen({ gameId, teamId, teamName, onGameOver }: Gam
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={onReset}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm font-medium hover:bg-red-100 hover:border-red-300 transition-colors"
+              title="Quit game and return to start"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Quit</span>
+            </button>
+
             <RoundTimer
               key={roundKey}
               totalSeconds={ROUND_TIME_SECONDS}

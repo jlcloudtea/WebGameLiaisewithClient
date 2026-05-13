@@ -128,6 +128,7 @@ export default function Home() {
           teamId={teamId}
           teamName={teamName}
           onGameOver={handleGameOver}
+          onReset={handlePlayAgain}
         />
       )}
 
