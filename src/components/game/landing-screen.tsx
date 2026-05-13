@@ -14,14 +14,13 @@ interface LandingScreenProps {
 
 export default function LandingScreen({ onGameStart }: LandingScreenProps) {
   const [teamName, setTeamName] = useState('');
-  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!teamName.trim() || !password.trim()) {
-      setError('Please fill in all fields');
+    if (!teamName.trim()) {
+      setError('Please enter a team name');
       return;
     }
 
@@ -29,16 +28,16 @@ export default function LandingScreen({ onGameStart }: LandingScreenProps) {
     setError('');
 
     try {
-      // Create or join team
+      // Create team (no password required)
       const teamRes = await fetch('/api/team', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: teamName.trim(), password: password.trim() }),
+        body: JSON.stringify({ name: teamName.trim() }),
       });
 
       if (!teamRes.ok) {
         const data = await teamRes.json();
-        throw new Error(data.error || 'Failed to create/join team');
+        throw new Error(data.error || 'Failed to create team');
       }
 
       const teamData = await teamRes.json();
@@ -141,18 +140,6 @@ export default function LandingScreen({ onGameStart }: LandingScreenProps) {
                     value={teamName}
                     onChange={(e) => setTeamName(e.target.value)}
                     placeholder="Enter your team name"
-                    className="border-amber-200 focus:border-amber-500 focus:ring-amber-500"
-                    disabled={isLoading}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-amber-800">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter a password"
                     className="border-amber-200 focus:border-amber-500 focus:ring-amber-500"
                     disabled={isLoading}
                   />

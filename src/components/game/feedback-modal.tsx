@@ -32,7 +32,9 @@ export default function FeedbackModal({
 
   const isPositive = document.scoreEarned > 0;
   const isNeutral = document.scoreEarned === 0;
-  const isLastRound = currentRound >= totalRounds;
+  // document.roundSubmitted is the round just completed.
+  // currentRound is already advanced to the NEXT round by the backend.
+  const isLastRound = document.roundSubmitted >= totalRounds;
 
   const getIcon = () => {
     if (isPositive) return <ThumbsUp className="w-8 h-8 text-emerald-500" />;
@@ -63,7 +65,7 @@ export default function FeedbackModal({
           <DialogDescription className="text-amber-600">
             {isLastRound
               ? 'Final round complete!'
-              : `Moving to Round ${currentRound + 1}`}
+              : `Moving to Round ${currentRound}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -112,7 +114,7 @@ export default function FeedbackModal({
             </span>
           ) : (
             <span className="flex items-center gap-2">
-              Next Round
+              Continue to Round {currentRound}
               <ArrowRight className="w-4 h-4" />
             </span>
           )}

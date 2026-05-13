@@ -4,11 +4,11 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, password } = body
+    const { name } = body
 
-    if (!name || !password) {
+    if (!name) {
       return NextResponse.json(
-        { error: 'Team name and password are required' },
+        { error: 'Team name is required' },
         { status: 400 }
       )
     }
@@ -25,10 +25,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Auto-generate a random password (not required from user)
+    const autoPassword = Math.random().toString(36).slice(2, 10)
+
     const team = await db.team.create({
       data: {
         name,
-        password,
+        password: autoPassword,
         score: 0,
       },
     })

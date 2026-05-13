@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,14 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageSquare, Send, AlertTriangle, User, Bot } from 'lucide-react';
 import type { ClientMessage } from '@/lib/game-types';
+
+interface ChatEntry {
+  id: string;
+  sender: 'client' | 'team';
+  text: string;
+  isTrap: boolean;
+  round: number;
+}
 
 interface ChatPanelProps {
   messages: ClientMessage[];
@@ -20,42 +28,53 @@ export default function ChatPanel({ messages, currentRound }: ChatPanelProps) {
   const [replies, setReplies] = useState<{ round: number; text: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Build chat history from messages and replies (derived, no setState in effect)
+  // Build interleaved chat history: Client R1 → Team reply R1 → Client R2 → Team reply R2 → ...
   const chatHistory = useMemo(() => {
-    const roundMessages = messages.filter((m) => m.round <= currentRound);
-    const clientEntries = roundMessages.map((m) => ({
-      id: `client-${m.id}`,
-      sender: 'client' as const,
-      text: m.content,
-      isTrap: m.isVerbalTrap,
-    }));
+    const result: ChatEntry[] = [];
 
-    const replyEntries = replies
-      .filter((r) => r.round <= currentRound)
-      .map((r, i) => ({
-        id: `reply-${i}`,
-        sender: 'team' as const,
-        text: r.text,
-        isTrap: false,
-      }));
+    for (let r = 1; r <= currentRound; r++) {
+      // Add client message for this round
+      const clientMsg = messages.find((m) => m.round === r);
+      if (clientMsg) {
+        result.push({
+          id: `client-${clientMsg.id}`,
+          sender: 'client',
+          text: clientMsg.content,
+          isTrap: clientMsg.isVerbalTrap,
+          round: r,
+        });
+      }
 
-    return [...clientEntries, ...replyEntries].sort((a, b) => {
-      // Keep order: client messages first by round, then replies by round
-      return a.id.localeCompare(b.id);
-    });
+      // Add all team replies for this round
+      const roundReplies = replies.filter((rep) => rep.round === r);
+      roundReplies.forEach((rep, i) => {
+        result.push({
+          id: `reply-r${r}-${i}`,
+          sender: 'team',
+          text: rep.text,
+          isTrap: false,
+          round: r,
+        });
+      });
+    }
+
+    return result;
   }, [messages, currentRound, replies]);
+
+  // Auto-scroll to bottom when chat history changes
+  useEffect(() => {
+    setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 100);
+  }, [chatHistory.length]);
 
   const handleReply = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reply.trim()) return;
     setReplies((prev) => [...prev, { round: currentRound, text: reply.trim() }]);
     setReply('');
-    // Scroll to bottom after reply
-    setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
-    }, 100);
   };
 
   return (
@@ -74,8 +93,8 @@ export default function ChatPanel({ messages, currentRound }: ChatPanelProps) {
             {chatHistory.map((msg) => (
               <motion.div
                 key={msg.id}
-                initial={{ opacity: 0, x: msg.sender === 'client' ? -20 : 20, scale: 0.95 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                 className={`flex ${msg.sender === 'team' ? 'justify-end' : 'justify-start'}`}
               >
