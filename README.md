@@ -56,7 +56,7 @@ Built around the **"Bark & Byte"** dog daycare scenario, students navigate 5 rou
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/YOUR_USERNAME/WebGameLiaisewithClient.git
+git clone https://github.com/jlcloudtea/WebGameLiaisewithClient.git
 cd WebGameLiaisewithClient
 
 # 2. Install dependencies
@@ -95,13 +95,8 @@ Open [http://localhost:3000](http://localhost:3000) to play.
 
 ### Step 1: Push to GitHub
 
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/YOUR_USERNAME/WebGameLiaisewithClient.git
-git push -u origin main
-```
+The project is already available at:
+`https://github.com/jlcloudtea/WebGameLiaisewithClient`
 
 ### Step 2: Create a Free PostgreSQL Database
 
@@ -124,45 +119,165 @@ git push -u origin main
    - **Install Command**: leave default
 4. Under **Environment Variables**, add:
    - **Key**: `DATABASE_URL`
-   - **Value**: *(paste from Step 2)*
+   - **Value**: *(paste from Step 2 — the part after the `=` sign)*
 5. Click **Deploy**
 
 ### Step 4: Run Database Migrations
 
-After the first deploy succeeds, create the database tables:
+After the first deploy, create the database tables. Run these SQL statements **one at a time** in the Neon SQL editor (Dashboard → Storage → your database → Query tab):
 
-**Option A — Using Vercel CLI (recommended):**
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Link to your Vercel project
-vercel link
-
-# Pull environment variables (including DATABASE_URL)
-vercel env pull .env.local
-
-# Run the migration
-npx prisma migrate deploy
+```sql
+CREATE TYPE "DocumentType" AS ENUM ('CONFIRMATION', 'ADDITIONAL', 'APPROVAL', 'TRAINING', 'USER_DOC');
 ```
 
-**Option B — Using the Vercel Dashboard:**
-
-1. Go to your project → **Storage** → Click your Postgres database
-2. Click the **Query** tab
-3. Copy the SQL from `prisma/migrations/00000000000000_init/migration.sql` and run it
-
-### Step 5: (Optional) Seed Demo Data
-
-```bash
-# If you pulled env vars with vercel env pull:
-npx prisma db seed
+```sql
+CREATE TABLE "Team" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "score" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "Team_pkey" PRIMARY KEY ("id")
+);
 ```
 
-### Step 6: Play!
+```sql
+CREATE TABLE "GameSession" (
+    "id" TEXT NOT NULL,
+    "currentRound" INTEGER NOT NULL DEFAULT 1,
+    "isComplete" BOOLEAN NOT NULL DEFAULT false,
+    "teamId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    CONSTRAINT "GameSession_pkey" PRIMARY KEY ("id")
+);
+```
 
-Visit your deployed URL (e.g., `https://web-game-liaise-with-client.vercel.app`) and start playing!
+```sql
+CREATE TABLE "ClientMessage" (
+    "id" TEXT NOT NULL,
+    "content" TEXT NOT NULL,
+    "round" INTEGER NOT NULL,
+    "isVerbalTrap" BOOLEAN NOT NULL DEFAULT false,
+    "gameSessionId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ClientMessage_pkey" PRIMARY KEY ("id")
+);
+```
+
+```sql
+CREATE TABLE "PlayerDocument" (
+    "id" TEXT NOT NULL,
+    "documentType" "DocumentType" NOT NULL,
+    "content" TEXT NOT NULL,
+    "roundSubmitted" INTEGER NOT NULL,
+    "scoreEarned" INTEGER NOT NULL DEFAULT 0,
+    "feedback" TEXT NOT NULL DEFAULT '',
+    "gameSessionId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "PlayerDocument_pkey" PRIMARY KEY ("id")
+);
+```
+
+```sql
+CREATE UNIQUE INDEX "Team_name_key" ON "Team"("name");
+```
+
+```sql
+ALTER TABLE "GameSession" ADD CONSTRAINT "GameSession_teamId_fkey" FOREIGN KEY ("teamId") REFERENCES "Team"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+```
+
+```sql
+ALTER TABLE "ClientMessage" ADD CONSTRAINT "ClientMessage_gameSessionId_fkey" FOREIGN KEY ("gameSessionId") REFERENCES "GameSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+```
+
+```sql
+ALTER TABLE "PlayerDocument" ADD CONSTRAINT "PlayerDocument_gameSessionId_fkey" FOREIGN KEY ("gameSessionId") REFERENCES "GameSession"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+```
+
+### Step 5: Play!
+
+Visit your deployed URL (e.g., `https://web-game-liaisewith-client.vercel.app`) and start playing!
+
+---
+
+## Keep the Database Alive (Important!)
+
+Neon may delete inactive databases after 90 days. Set up a **free weekly ping** to keep it alive:
+
+1. Go to [https://cron-job.org](https://cron-job.org) → **Create Free Account**
+2. Click **Create Cron Job**
+3. Fill in:
+   - **Title**: `Keep Neon DB Alive`
+   - **URL**: `https://your-app-name.vercel.app/api/health`
+   - **Schedule**: Every **7 days**
+4. Click **Create**
+
+This pings your app once a week, which keeps Neon counting your project as active.
+
+---
+
+## Auto-Cleanup (Data Older Than 3 Months)
+
+The app automatically cleans up game data older than 90 days (3 months) via a cleanup endpoint.
+
+### Set Up the Cleanup Cron Job
+
+1. In [cron-job.org](https://cron-job.org), create another cron job:
+   - **Title**: `Cleanup Old Game Data`
+   - **URL**: `https://your-app-name.vercel.app/api/cleanup`
+   - **Schedule**: Every **7 days**
+2. Under **Advanced** → **Request headers**, add:
+   - **Header name**: `Authorization`
+   - **Header value**: `Bearer scope-creep-cleanup-2025`
+3. Click **Create**
+
+### How It Works
+
+When the cron runs weekly, data older than 90 days is automatically deleted:
+
+| Data | Rule |
+|------|------|
+| PlayerDocuments | Created > 90 days ago → deleted |
+| ClientMessages | Created > 90 days ago → deleted |
+| GameSessions | Created > 90 days ago → deleted (after child records removed) |
+| Teams | Deleted only if they have no remaining sessions |
+
+### Custom Cleanup Secret (Optional)
+
+For stronger security, add an environment variable in Vercel:
+- **Key**: `CLEANUP_SECRET`
+- **Value**: any strong password (e.g., `my-secret-key-2025`)
+
+Then use that as the Bearer token in cron-job.org instead.
+
+### Manual Cleanup
+
+To manually reset all game data at any time (e.g., between semesters), run these **one at a time** in the Neon SQL editor:
+
+```sql
+DELETE FROM "PlayerDocument";
+DELETE FROM "ClientMessage";
+DELETE FROM "GameSession";
+DELETE FROM "Team";
+```
+
+> **Order matters!** Delete child tables first due to foreign key constraints.
+
+---
+
+## Security & Abuse Prevention
+
+The app includes built-in protections:
+
+| Protection | What It Does |
+|-----------|-------------|
+| **Rate Limiting** | Max 5 requests per IP per minute for team creation, game start, and document submission |
+| **DB Size Limits** | Max 200 teams and 1,000 game sessions — blocks new entries when hit |
+| **Input Sanitization** | Team name trimmed, max 50 characters, minimum 2 characters |
+| **Spam Filtering** | Blocks obvious spam names (test, spam, asdf, aaa, etc.) |
+| **Cleanup Auth** | Cleanup endpoint requires a secret Bearer token |
 
 ---
 
@@ -181,6 +296,8 @@ Visit your deployed URL (e.g., `https://web-game-liaise-with-client.vercel.app`)
 │   │   └── api/
 │   │       ├── team/route.ts           # POST: Create a new team
 │   │       ├── leaderboard/route.ts    # GET: Fetch leaderboard
+│   │       ├── health/route.ts         # GET: Health check (keeps Neon alive)
+│   │       ├── cleanup/route.ts        # GET: Auto-cleanup old data (>90 days)
 │   │       └── game/
 │   │           ├── start/route.ts      # POST: Start a new game session
 │   │           └── [id]/
@@ -200,6 +317,7 @@ Visit your deployed URL (e.g., `https://web-game-liaise-with-client.vercel.app`)
 │   └── lib/
 │       ├── db.ts                # Prisma client singleton
 │       ├── game-types.ts        # TypeScript types, round configs, scoring rules
+│       ├── rate-limit.ts        # Rate limiting & DB size protection
 │       └── utils.ts             # Utility functions
 ├── public/
 │   └── game-logo.png            # Game logo image
@@ -235,12 +353,22 @@ Visit your deployed URL (e.g., `https://web-game-liaise-with-client.vercel.app`)
 
 ---
 
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string from Neon |
+| `CLEANUP_SECRET` | No | Custom secret for cleanup endpoint (default: `scope-creep-cleanup-2025`) |
+
+---
+
 ## Cost
 
 | Service | Free Tier |
 |---------|-----------|
 | Vercel Hosting | 100 GB bandwidth, unlimited sites |
 | Neon Postgres | 0.5 GB storage, 100 compute hours/month |
+| cron-job.org | Unlimited free cron jobs |
 | GitHub | Unlimited public repos |
 
 **Total cost: $0**
