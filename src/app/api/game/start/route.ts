@@ -1,8 +1,25 @@
 import { db } from '@/lib/db'
 import { NextRequest, NextResponse } from 'next/server'
+import { checkRateLimit, checkDbLimits } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: max 5 game starts per IP per minute
+    const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+    const { allowed, retryAfterMs } = checkRateLimit(`game:${ip}`)
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a moment and try again.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(retryAfterMs / 1000)) } }
+      )
+    }
+
+    // Database size limit: prevent flooding
+    const dbCheck = await checkDbLimits()
+    if (!dbCheck.allowed) {
+      return NextResponse.json({ error: dbCheck.reason }, { status: 503 })
+    }
+
     const body = await request.json()
     const { teamId } = body
 
