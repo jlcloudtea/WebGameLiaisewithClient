@@ -6,10 +6,13 @@ import GameScreen from '@/components/game/game-screen';
 import GameOverScreen from '@/components/game/game-over-screen';
 import type { PlayerDocument } from '@/lib/game-types';
 
-type Screen = 'landing' | 'game' | 'gameover' | 'restoring';
+type Screen = 'landing' | 'game' | 'gameover' | 'loading';
 
 export default function Home() {
-  const [screen, setScreen] = useState<Screen>('restoring');
+  // Start with 'loading' so the server always renders a static placeholder.
+  // After mount on the client, we check localStorage and switch to the real screen.
+  // This prevents hydration mismatches from framer-motion / dynamic client data.
+  const [screen, setScreen] = useState<Screen>('loading');
   const [teamId, setTeamId] = useState<string>('');
   const [gameId, setGameId] = useState<string>('');
   const [teamName, setTeamName] = useState<string>('');
@@ -17,7 +20,7 @@ export default function Home() {
   const [finalDocuments, setFinalDocuments] = useState<PlayerDocument[]>([]);
   const [leaderboardPosition, setLeaderboardPosition] = useState(0);
 
-  // Restore from localStorage on mount
+  // Restore from localStorage on mount (client-only)
   useEffect(() => {
     const savedTeamId = localStorage.getItem('game_teamId');
     const savedGameId = localStorage.getItem('game_gameId');
@@ -27,9 +30,7 @@ export default function Home() {
       // Verify the game still exists
       fetch(`/api/game/${savedGameId}`)
         .then((res) => {
-          if (res.ok) {
-            return res.json();
-          }
+          if (res.ok) return res.json();
           throw new Error('Game not found');
         })
         .then((data) => {
@@ -56,10 +57,8 @@ export default function Home() {
           setScreen('landing');
         });
     } else {
-      // No saved game, go to landing - use microtask to make it async
-      Promise.resolve().then(() => {
-        setScreen('landing');
-      });
+      // Use microtask to avoid synchronous setState in effect
+      queueMicrotask(() => setScreen('landing'));
     }
   }, []);
 
@@ -77,7 +76,6 @@ export default function Home() {
     setFinalScore(score);
     setFinalDocuments(documents);
 
-    // Fetch leaderboard position
     try {
       const res = await fetch('/api/leaderboard');
       if (res.ok) {
@@ -107,12 +105,12 @@ export default function Home() {
     setScreen('landing');
   };
 
-  if (screen === 'restoring') {
+  if (screen === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50">
         <div className="text-center">
           <div className="w-10 h-10 border-3 border-amber-300 border-t-amber-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-amber-700 font-medium">Restoring game...</p>
+          <p className="text-amber-700 font-medium">Loading...</p>
         </div>
       </div>
     );
